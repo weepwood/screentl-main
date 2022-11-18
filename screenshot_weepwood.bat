@@ -1,0 +1,1 @@
+python "D:\App\Script\screentl-main\screenshot.py"
