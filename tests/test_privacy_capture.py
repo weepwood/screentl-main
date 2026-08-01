@@ -3,7 +3,7 @@ from threading import Event
 
 from PIL import Image
 
-import screentl.privacy as privacy
+from screentl import privacy
 from screentl.capture_engine import SessionCaptureEngine, SessionCaptureOptions
 from screentl.privacy import ActiveWindowInfo, PrivacyGuard, PrivacyRules
 from screentl.sessions import SessionRepository
