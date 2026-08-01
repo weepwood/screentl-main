@@ -5,13 +5,12 @@ from __future__ import annotations
 import datetime as dt
 import os
 import random
-import shutil
 import subprocess
 import tempfile
 import threading
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
 import imageio_ffmpeg
@@ -32,7 +31,7 @@ CODECS = {
 
 
 class RenderCancelled(RuntimeError):
-    pass
+    """Raised when an FFmpeg render is cancelled by the user."""
 
 
 @dataclass(frozen=True)
@@ -101,26 +100,26 @@ class FFmpegSessionRenderer:
             raise ValueError("session has no frames to render")
 
         groups = self._group_frames(frames, options.split_by_hour)
-        outputs = []
+        outputs: list[Path] = []
         for index, (label, group) in enumerate(groups):
-            progress_offset = index / len(groups)
-            progress_scale = 1 / len(groups)
-            output = self._render_group(
-                session,
-                label,
-                group,
-                options,
-                cancel_event,
-                (
-                    lambda value, offset=progress_offset, scale=progress_scale: on_progress(
-                        offset + value * scale
-                    )
-                    if on_progress
-                    else None
-                ),
+            offset = index / len(groups)
+            scale = 1 / len(groups)
+
+            def group_progress(value: float, *, offset: float = offset, scale: float = scale) -> None:
+                if on_progress is not None:
+                    on_progress(offset + value * scale)
+
+            outputs.append(
+                self._render_group(
+                    session,
+                    label,
+                    group,
+                    options,
+                    cancel_event,
+                    group_progress,
+                )
             )
-            outputs.append(output)
-        if on_progress:
+        if on_progress is not None:
             on_progress(1.0)
         return outputs
 
@@ -131,14 +130,11 @@ class FFmpegSessionRenderer:
     ) -> list[tuple[str, list[TimelineFrame]]]:
         if not split_by_hour:
             return [("", frames)]
-        groups: list[tuple[str, list[TimelineFrame]]] = []
         buckets: dict[str, list[TimelineFrame]] = {}
         for frame in frames:
             hour = frame.captured_at[:13].replace(":", "-").replace("T", "_")
             buckets.setdefault(hour, []).append(frame)
-        for key in sorted(buckets):
-            groups.append((key, buckets[key]))
-        return groups
+        return [(key, buckets[key]) for key in sorted(buckets)]
 
     def _render_group(
         self,
@@ -147,7 +143,7 @@ class FFmpegSessionRenderer:
         frames: list[TimelineFrame],
         options: RenderOptions,
         cancel_event: threading.Event | None,
-        on_progress: Callable[[float], None] | None,
+        on_progress: Callable[[float], None],
     ) -> Path:
         job_id = self.repository.create_render_job(
             session.id,
@@ -191,22 +187,25 @@ class FFmpegSessionRenderer:
         options: RenderOptions,
         job_id: str,
         cancel_event: threading.Event | None,
-        on_progress: Callable[[float], None] | None,
+        on_progress: Callable[[float], None],
     ) -> Path:
-        suffix = options.output_format
         stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         label_part = f"_{label}" if label else ""
-        destination = session.output_path / f"{session.name}_{stamp}{label_part}.{suffix}"
+        destination = session.output_path / (
+            f"{session.name}_{stamp}{label_part}.{options.output_format}"
+        )
         if destination.exists() and not options.overwrite:
             destination = destination.with_stem(f"{destination.stem}_{uuid.uuid4().hex[:6]}")
-        temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.part")
+        temporary = destination.with_name(
+            f".{destination.stem}.{uuid.uuid4().hex}.part{destination.suffix}"
+        )
         destination.parent.mkdir(parents=True, exist_ok=True)
 
         with tempfile.TemporaryDirectory(prefix="screentl-render-") as directory:
             workspace = Path(directory)
             prepared = self._prepare_frames(frames, workspace, options)
             concat_file = self._write_concat_file(prepared, frames, workspace)
-            duration = sum(frame.duration for frame in frames)
+            duration = sum(max(0.04, frame.duration) for frame in frames)
             command = self._build_command(
                 concat_file,
                 temporary,
@@ -236,7 +235,7 @@ class FFmpegSessionRenderer:
         workspace: Path,
         options: RenderOptions,
     ) -> list[Path]:
-        prepared = []
+        prepared: list[Path] = []
         for index, frame in enumerate(frames):
             with Image.open(frame.path) as source:
                 image = apply_privacy_masks(source, frame.masks, options.mask_mode)
@@ -269,7 +268,7 @@ class FFmpegSessionRenderer:
         frames: list[TimelineFrame],
         workspace: Path,
     ) -> Path:
-        lines = []
+        lines: list[str] = []
         for path, frame in zip(prepared, frames, strict=True):
             lines.append(f"file {self._ffmpeg_quote(path)}")
             lines.append(f"duration {max(0.04, frame.duration):.6f}")
@@ -279,7 +278,7 @@ class FFmpegSessionRenderer:
         return destination
 
     def _select_audio(self, options: RenderOptions) -> list[Path]:
-        if options.audio_mode == "none":
+        if options.output_format == "gif" or options.audio_mode == "none":
             return []
         if options.audio_path is not None:
             if not options.audio_path.is_file():
@@ -327,9 +326,7 @@ class FFmpegSessionRenderer:
             str(concat_file),
         ]
         audio = self._select_audio(options)
-        audio_input_index = None
         if audio:
-            audio_input_index = 1
             if options.audio_mode == "loop":
                 command.extend(["-stream_loop", "-1", "-i", str(audio[0])])
             elif options.audio_mode == "sequence":
@@ -339,21 +336,27 @@ class FFmpegSessionRenderer:
                 command.extend(["-i", str(audio[0])])
 
         if options.output_format == "gif":
+            filter_graph = (
+                f"[0:v]fps={min(options.fps, 30)},split[s0][s1];"
+                "[s0]palettegen=max_colors=256[p];"
+                "[s1][p]paletteuse=dither=sierra2_4a[out]"
+            )
+            command.extend(["-filter_complex", filter_graph, "-map", "[out]", "-loop", "0"])
+        else:
             command.extend(
                 [
-                    "-vf",
-                    f"fps={min(options.fps, 30)},split[s0][s1];"
-                    "[s0]palettegen=max_colors=256[p];[s1][p]paletteuse=dither=sierra2_4a",
-                    "-loop",
-                    "0",
+                    "-c:v",
+                    CODECS[options.codec],
+                    "-b:v",
+                    options.bitrate,
+                    "-r",
+                    str(options.fps),
                 ]
             )
-        else:
-            command.extend(["-c:v", CODECS[options.codec], "-b:v", options.bitrate])
             if options.codec in {"h264", "h265"}:
                 command.extend(["-preset", "medium"])
             command.extend(["-pix_fmt", "yuv420p", "-movflags", "+faststart"])
-            if audio_input_index is not None:
+            if audio:
                 fade_out_start = max(0.0, duration - options.audio_fade_seconds)
                 filters = [f"volume={options.audio_volume}"]
                 if options.audio_fade_seconds > 0:
@@ -368,7 +371,7 @@ class FFmpegSessionRenderer:
                         "-map",
                         "0:v:0",
                         "-map",
-                        f"{audio_input_index}:a:0",
+                        "1:a:0",
                         "-filter:a",
                         ",".join(filters),
                         "-c:a",
@@ -376,14 +379,7 @@ class FFmpegSessionRenderer:
                         "-shortest",
                     ]
                 )
-        command.extend(
-            [
-                "-progress",
-                "pipe:1",
-                "-nostats",
-                str(output),
-            ]
-        )
+        command.extend(["-progress", "pipe:1", "-nostats", str(output)])
         return command
 
     def _run_process(
@@ -392,7 +388,7 @@ class FFmpegSessionRenderer:
         duration: float,
         job_id: str,
         cancel_event: threading.Event | None,
-        on_progress: Callable[[float], None] | None,
+        on_progress: Callable[[float], None],
     ) -> None:
         creationflags = 0x08000000 if os.name == "nt" else 0
         process = subprocess.Popen(
@@ -424,14 +420,10 @@ class FFmpegSessionRenderer:
                         process.kill()
                     raise RenderCancelled("render cancelled")
                 key, separator, value = raw_line.strip().partition("=")
-                if not separator:
-                    continue
-                if key in {"out_time_ms", "out_time_us"}:
-                    microseconds = int(value)
-                    progress = min(0.99, microseconds / max(1, duration * 1_000_000))
+                if separator and key in {"out_time_ms", "out_time_us"}:
+                    progress = min(0.99, int(value) / max(1, duration * 1_000_000))
                     self.repository.update_render_job(job_id, "running", progress=progress)
-                    if on_progress:
-                        on_progress(progress)
+                    on_progress(progress)
             return_code = process.wait()
             stderr_thread.join(2)
             if return_code != 0:
@@ -455,10 +447,4 @@ class FFmpegSessionRenderer:
         return TimelineService(self.repository).build_contact_sheet(session_id, target)
 
     def recover_interrupted_jobs(self) -> int:
-        with self.repository._connect() as connection:
-            cursor = connection.execute(
-                "UPDATE render_jobs SET status = 'failed', error = 'application interrupted', "
-                "finished_at = ? WHERE status IN ('queued', 'running')",
-                (dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),),
-            )
-            return cursor.rowcount
+        return self.repository.recover_render_jobs()
