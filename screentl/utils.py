@@ -2,9 +2,9 @@ import datetime
 import os
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from threading import Event
-from typing import Callable, Optional
 
 import pyautogui
 
@@ -48,9 +48,9 @@ def _do_screenshot(folder: str | Path, number: int | None = None) -> Path:
 
 def screenshot(interval: int = 30,
                folder: str = TODAY,
-               stop_event: Optional[Event] = None,
-               pause_event: Optional[Event] = None,
-               on_capture: Optional[Callable[[Path], None]] = None):
+               stop_event: Event | None = None,
+               pause_event: Event | None = None,
+               on_capture: Callable[[Path], None] | None = None):
     """
     Execute screen shot
     :param interval: how often the screen is captured.
