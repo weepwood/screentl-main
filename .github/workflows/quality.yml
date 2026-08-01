@@ -18,7 +18,7 @@ jobs:
   review:
     name: Static checks and tests
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -36,25 +36,34 @@ jobs:
           python -m pip install --disable-pip-version-check -r requirements-ci.lock
 
       - name: Compile Python source
-        run: python -m compileall -q app.py makevideo.py screenshot.py screentl scripts tests
+        run: >-
+          python -m compileall -q
+          app.py journal.py makevideo.py screenshot.py screentl scripts tests
 
       - name: Run Ruff review
-        run: python -m ruff check app.py makevideo.py screenshot.py screentl scripts tests
+        run: >-
+          python -m ruff check
+          app.py journal.py makevideo.py screenshot.py screentl scripts tests
 
       - name: Run tests with coverage
-        run: >-
-          python -m pytest
-          --cov=screentl
-          --cov-report=term-missing
-          --cov-report=xml
+        shell: pwsh
+        run: |
+          $output = python -m pytest --cov=screentl --cov-report=term-missing --cov-report=xml --junitxml=test-results.xml 2>&1
+          $exitCode = $LASTEXITCODE
+          $output | Tee-Object -FilePath pytest.log
+          exit $exitCode
 
       - name: Audit locked runtime dependencies
         run: python -m pip_audit -r requirements.lock
 
-      - name: Upload coverage report
+      - name: Upload test diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ github.sha }}
-          path: coverage.xml
-          if-no-files-found: error
+          name: test-diagnostics-${{ github.sha }}
+          path: |
+            pytest.log
+            test-results.xml
+            coverage.xml
+          if-no-files-found: ignore
           retention-days: 14

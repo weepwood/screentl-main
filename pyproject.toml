@@ -15,15 +15,17 @@ dependencies = [
   "proglog>=0.1.10,<2",
   "PyAutoGUI>=0.9.54,<1",
   "pystray>=0.19.5,<1",
+  "mss>=10.2.0,<11",
 ]
 
 [project.scripts]
 screentl-capture = "screenshot:main"
 screentl-render = "makevideo:main"
+screentl-journal = "journal:main"
 
 [tool.setuptools]
 packages = ["screentl"]
-py-modules = ["screenshot", "makevideo"]
+py-modules = ["screenshot", "makevideo", "journal"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -36,6 +38,7 @@ source = ["screentl"]
 omit = [
   "screentl/ui.py",
   "screentl/application.py",
+  "screentl/journal_app.py",
   "screentl/windows.py",
 ]
 
@@ -54,6 +57,11 @@ line-length = 100
 
 [tool.ruff.lint]
 ignore = ["BLE001", "DTZ011"]
+
+[tool.ruff.lint.per-file-ignores]
+"screentl/capture_engine.py" = ["DTZ005"]
+"screentl/renderer.py" = ["DTZ005"]
+"screentl/journal_app.py" = ["F401"]
 
 [tool.ruff.format]
 quote-style = "double"
