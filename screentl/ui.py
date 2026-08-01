@@ -1,6 +1,8 @@
 """Tkinter desktop interface for Screenshot Time-lapse."""
 
 import datetime
+import json
+import os
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -18,8 +20,12 @@ class ScreenshotTimeLapseApp(tk.Tk):
         self.minsize(680, 520)
 
         self.capture_stop = threading.Event()
+        self.capture_pause = threading.Event()
+        self.capture_pause.set()
         self.capture_thread = None
         self.video_thread = None
+        self.capture_count = 0
+        self.config_path = Path(__file__).resolve().parent.parent / '.screentl.json'
 
         self.folder_var = tk.StringVar(value=datetime.date.today().strftime('%Y-%m-%d'))
         self.interval_var = tk.StringVar(value='30')
@@ -28,6 +34,7 @@ class ScreenshotTimeLapseApp(tk.Tk):
         self.text_var = tk.StringVar(value=datetime.date.today().strftime('%Y-%m-%d'))
         self.status_var = tk.StringVar(value='就绪')
 
+        self._load_config()
         self._configure_style()
         self._build_ui()
         self.protocol('WM_DELETE_WINDOW', self._on_close)
@@ -67,6 +74,9 @@ class ScreenshotTimeLapseApp(tk.Tk):
         self.start_button.pack(side='left')
         self.stop_button = ttk.Button(buttons, text='停止截屏', command=self.stop_capture, state='disabled')
         self.stop_button.pack(side='left', padx=(8, 0))
+        self.pause_button = ttk.Button(buttons, text='暂停', command=self.pause_capture, state='disabled')
+        self.pause_button.pack(side='left', padx=(8, 0))
+        ttk.Button(buttons, text='打开目录', command=self.open_capture_folder).pack(side='left', padx=(8, 0))
 
         video = ttk.LabelFrame(root, text='生成视频', style='Section.TLabelframe', padding=12)
         video.grid(row=3, column=0, sticky='new', pady=(0, 12))
@@ -108,6 +118,33 @@ class ScreenshotTimeLapseApp(tk.Tk):
         if selected:
             variable.set(selected)
 
+    def _load_config(self):
+        try:
+            with self.config_path.open('r', encoding='utf-8') as f:
+                config = json.load(f)
+            for name, variable in (
+                ('folder', self.folder_var), ('interval', self.interval_var),
+                ('fps', self.fps_var), ('audio', self.audio_var), ('text', self.text_var),
+            ):
+                if name in config:
+                    variable.set(str(config[name]))
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            pass
+
+    def _save_config(self):
+        config = {
+            'folder': self.folder_var.get(),
+            'interval': self.interval_var.get(),
+            'fps': self.fps_var.get(),
+            'audio': self.audio_var.get(),
+            'text': self.text_var.get(),
+        }
+        try:
+            with self.config_path.open('w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            self._log(f'配置保存失败：{exc}')
+
     def _log(self, message):
         self.log_text.configure(state='normal')
         self.log_text.insert('end', message.rstrip() + '\n')
@@ -133,17 +170,26 @@ class ScreenshotTimeLapseApp(tk.Tk):
             return
 
         self.capture_stop.clear()
+        self.capture_pause.set()
+        self.capture_count = 0
         self.capture_thread = threading.Thread(
             target=self._capture_worker, args=(folder, interval), daemon=True)
         self.capture_thread.start()
         self.start_button.configure(state='disabled')
         self.stop_button.configure(state='normal')
+        self.pause_button.configure(state='normal', text='暂停')
         self.status_var.set('正在截屏…')
         self._log(f'开始截屏：{folder}，间隔 {interval} 秒')
 
     def _capture_worker(self, folder, interval):
         try:
-            screenshot(folder=folder, interval=interval, stop_event=self.capture_stop)
+            screenshot(
+                folder=folder,
+                interval=interval,
+                stop_event=self.capture_stop,
+                pause_event=self.capture_pause,
+                on_capture=self._capture_received,
+            )
             self._thread_log('截屏已停止')
         except Exception as exc:
             self._thread_log(f'截屏失败：{exc}')
@@ -152,11 +198,39 @@ class ScreenshotTimeLapseApp(tk.Tk):
 
     def stop_capture(self):
         self.capture_stop.set()
+        self.capture_pause.set()
         self.status_var.set('正在停止截屏…')
+
+    def pause_capture(self):
+        if self.capture_pause.is_set():
+            self.capture_pause.clear()
+            self.pause_button.configure(text='继续')
+            self.status_var.set('截屏已暂停')
+            self._log('截屏已暂停')
+        else:
+            self.capture_pause.set()
+            self.pause_button.configure(text='暂停')
+            self.status_var.set('正在截屏…')
+            self._log('截屏已继续')
+
+    def _capture_received(self, image_path):
+        self.capture_count += 1
+        self._thread_log(f'已截取第 {self.capture_count} 张：{image_path.name}')
+
+    def open_capture_folder(self):
+        folder = Path(self.folder_var.get().strip())
+        if not folder.is_dir():
+            messagebox.showinfo('目录不存在', '截图目录尚未创建。开始截屏后即可打开。')
+            return
+        try:
+            os.startfile(str(folder))
+        except OSError as exc:
+            messagebox.showerror('打开失败', str(exc))
 
     def _capture_finished(self):
         self.start_button.configure(state='normal')
         self.stop_button.configure(state='disabled')
+        self.pause_button.configure(state='disabled', text='暂停')
         self.status_var.set('就绪')
 
     def start_video(self):
@@ -198,8 +272,10 @@ class ScreenshotTimeLapseApp(tk.Tk):
         self.status_var.set('就绪')
 
     def _on_close(self):
+        self._save_config()
         if self.capture_thread and self.capture_thread.is_alive():
             self.capture_stop.set()
+            self.capture_pause.set()
         self.destroy()
 
 

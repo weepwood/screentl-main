@@ -129,6 +129,7 @@ dmypy.json
 video.mp4
 num.json
 screenshot_*.png
+.screentl.json
 
 # Pyre type checker
 .pyre/

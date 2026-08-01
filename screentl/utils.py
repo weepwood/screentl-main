@@ -3,6 +3,7 @@ import json
 import time
 from pathlib import Path
 from threading import Event
+from typing import Callable, Optional
 
 import pyautogui
 
@@ -44,7 +45,9 @@ def _do_screenshot(folder: str | Path) -> Path:
 
 def screenshot(interval: int = 30,
                folder: str = TODAY,
-               stop_event: Event | None = None):
+               stop_event: Optional[Event] = None,
+               pause_event: Optional[Event] = None,
+               on_capture: Optional[Callable[[Path], None]] = None):
     """
     Execute screen shot
     :param interval: how often the screen is captured.
@@ -55,7 +58,13 @@ def screenshot(interval: int = 30,
         raise ValueError('interval must be greater than zero')
 
     while stop_event is None or not stop_event.is_set():
-        _do_screenshot(folder)
+        if pause_event is not None:
+            pause_event.wait()
+            if stop_event is not None and stop_event.is_set():
+                break
+        image_path = _do_screenshot(folder)
+        if on_capture is not None:
+            on_capture(image_path)
         if stop_event is None:
             time.sleep(interval)
         elif stop_event.wait(interval):
@@ -63,4 +72,3 @@ def screenshot(interval: int = 30,
 
 # if you want to stop screen capturing, please stop this process
 # or Ctrl+c on the terminal
-
