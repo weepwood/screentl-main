@@ -6,6 +6,12 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
+function Assert-LastExitCode([string]$Step) {
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Step failed with exit code $LASTEXITCODE"
+    }
+}
+
 $Venv = Join-Path $Root ".build-venv"
 $Python = Join-Path $Venv "Scripts/python.exe"
 
@@ -13,23 +19,30 @@ if (Test-Path $Venv) {
     Remove-Item -Recurse -Force $Venv
 }
 
-try {
-    py -3.13 -m venv $Venv
-} catch {
-    py -3 -m venv $Venv
+& py -3.13 -m venv $Venv
+if ($LASTEXITCODE -ne 0) {
+    & py -3 -m venv $Venv
+    Assert-LastExitCode "Create build virtual environment"
 }
 
 & $Python -m pip install --disable-pip-version-check pip==26.1.2
+Assert-LastExitCode "Install pinned pip"
 & $Python -m pip install --disable-pip-version-check -r requirements-build.lock
+Assert-LastExitCode "Install locked build dependencies"
 
 if (-not $SkipTests) {
     & $Python -m pip install --disable-pip-version-check -r requirements-ci.lock
+    Assert-LastExitCode "Install locked CI dependencies"
     & $Python -m ruff check app.py makevideo.py screenshot.py screentl scripts tests
+    Assert-LastExitCode "Ruff review"
     & $Python -m pytest --cov=screentl --cov-report=term-missing
+    Assert-LastExitCode "Test suite"
 }
 
 & $Python scripts/prepare_build_assets.py
+Assert-LastExitCode "Generate build assets"
 & $Python -m PyInstaller --noconfirm --clean ScreenshotTimeLapse.spec
+Assert-LastExitCode "PyInstaller build"
 
 $Exe = Join-Path $Root "dist/ScreenshotTimeLapse.exe"
 if (!(Test-Path $Exe)) {
