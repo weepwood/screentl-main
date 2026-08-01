@@ -1,53 +1,56 @@
 import datetime
-import json
+import os
 import time
+import uuid
+from collections.abc import Callable
 from pathlib import Path
 from threading import Event
-from typing import Callable, Optional
 
 import pyautogui
+
+from .storage import atomic_write_json, next_screenshot_number, parse_screenshot_name
 
 TODAY = datetime.date.today().strftime('%Y-%m-%d')
 
 
 def _get_num(folder: str | Path) -> int:
-    """Create the output directory and return the next screenshot number."""
-    folder = Path(folder)
-    folder.mkdir(parents=True, exist_ok=True)
-    counter_file = folder / 'num.json'
+    """Create the output directory and return a collision-resistant next number."""
+    return next_screenshot_number(folder)
 
-    # initialize the first index, either continue from last screenshot or create the first.
-    if not counter_file.exists():
-        return 0
 
+def _do_screenshot(folder: str | Path, number: int | None = None) -> Path:
+    folder_path = Path(folder)
+    folder_path.mkdir(parents=True, exist_ok=True)
+    num = _get_num(folder_path) if number is None else max(0, number)
+
+    while True:
+        timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+        filename = folder_path / f'screenshot_{num}_{timestamp}.png'
+        if not filename.exists():
+            break
+        num += 1
+
+    temporary = folder_path / f'.{filename.stem}.{uuid.uuid4().hex}.tmp.png'
     try:
-        with counter_file.open('r', encoding='utf-8') as f:
-            return max(0, int(json.load(f)['num']))
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
-        # A damaged counter should not prevent future captures.
-        return 0
+        pyautogui.screenshot(str(temporary))
+        if not temporary.is_file():
+            raise OSError(f'screenshot backend did not create a file: {temporary}')
+        os.replace(temporary, filename)
+        atomic_write_json(folder_path / 'num.json', {'num': num + 1})
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
 
-
-def _do_screenshot(folder: str | Path) -> Path:
-    folder = Path(folder)
-    num = _get_num(folder)
-
-    timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    filename = folder / f'screenshot_{num}_{timestamp}.png'
-    pyautogui.screenshot(str(filename))
     start = time.time()
     print(f'Captured screenshot {num} at {time.ctime(start)}')
-    num += 1
-    with (folder / 'num.json').open('w', encoding='utf-8') as f:
-        json.dump({'num': num}, f)
     return filename
 
 
 def screenshot(interval: int = 30,
                folder: str = TODAY,
-               stop_event: Optional[Event] = None,
-               pause_event: Optional[Event] = None,
-               on_capture: Optional[Callable[[Path], None]] = None):
+               stop_event: Event | None = None,
+               pause_event: Event | None = None,
+               on_capture: Callable[[Path], None] | None = None):
     """
     Execute screen shot
     :param interval: how often the screen is captured.
@@ -57,12 +60,17 @@ def screenshot(interval: int = 30,
     if interval <= 0:
         raise ValueError('interval must be greater than zero')
 
+    next_number = _get_num(folder)
     while stop_event is None or not stop_event.is_set():
         if pause_event is not None:
             pause_event.wait()
             if stop_event is not None and stop_event.is_set():
                 break
-        image_path = _do_screenshot(folder)
+        image_path = _do_screenshot(folder, next_number)
+        parsed = parse_screenshot_name(image_path)
+        if parsed is None:
+            raise RuntimeError(f'unexpected screenshot filename: {image_path.name}')
+        next_number = parsed[0] + 1
         if on_capture is not None:
             on_capture(image_path)
         if stop_event is None:

@@ -1,5 +1,5 @@
-from threading import Event
 from pathlib import Path
+from threading import Event
 
 from screentl import utils
 

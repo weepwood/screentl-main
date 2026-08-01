@@ -35,7 +35,7 @@ jobs:
         run: ruff check app.py makevideo.py screenshot.py screentl tests
 
       - name: Run tests
-        run: pytest -q
+        run: python -m pytest -q
 
       - name: Audit dependencies
         run: pip-audit -r requirements.txt
