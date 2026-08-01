@@ -27,7 +27,7 @@ class AppSettings:
     minimize_to_tray: bool = True
 
     @classmethod
-    def defaults(cls) -> "AppSettings":
+    def defaults(cls) -> AppSettings:
         today = datetime.date.today().strftime("%Y-%m-%d")
         return cls(
             folder=str(default_data_root() / today),
@@ -36,7 +36,7 @@ class AppSettings:
         )
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "AppSettings":
+    def from_dict(cls, raw: dict[str, Any]) -> AppSettings:
         defaults = cls.defaults()
         try:
             interval = int(raw.get("interval", defaults.interval))
