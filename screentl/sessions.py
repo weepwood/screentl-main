@@ -8,6 +8,8 @@ import json
 import shutil
 import sqlite3
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -38,7 +40,7 @@ def image_hash(path: Path) -> str:
 def difference_hash(path: Path) -> str:
     with Image.open(path) as image:
         sample = image.convert("L").resize((9, 8))
-        pixels = list(sample.getdata())
+        pixels = list(sample.get_flattened_data())
     bits = []
     for row in range(8):
         offset = row * 9
@@ -97,12 +99,20 @@ class SessionRepository:
         self.database.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(self.database, timeout=30)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA journal_mode = WAL")
-        return connection
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
     def _initialize(self) -> None:
         with self._connect() as connection:
