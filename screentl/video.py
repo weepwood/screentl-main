@@ -1,9 +1,10 @@
 import datetime
 import random
-import re
 from pathlib import Path
 
 from moviepy.editor import AudioFileClip, CompositeVideoClip, ImageSequenceClip, TextClip
+
+from .storage import list_screenshots
 
 
 TODAY = datetime.date.today().strftime('%Y-%m-%d')
@@ -28,18 +29,11 @@ def make_video(folder: str = TODAY,
     if not folder_path.is_dir():
         raise FileNotFoundError(f'screenshot folder does not exist: {folder_path}')
 
-    # Accept both the current timestamped format and the old screenshot_N.png format.
-    pattern = re.compile(r'^screenshot_(\d+)(?:_\d{8}_\d{6})?\.png$', re.IGNORECASE)
-    numbered_images = []
-    for image in folder_path.iterdir():
-        match = pattern.match(image.name)
-        if match:
-            numbered_images.append((int(match.group(1)), image))
-    numbered_images.sort(key=lambda item: item[0])
-    if not numbered_images:
+    screenshots = list_screenshots(folder_path)
+    if not screenshots:
         raise FileNotFoundError(f'no screenshot_*.png files found in: {folder_path}')
 
-    images_list = [str(image) for _, image in numbered_images]
+    images_list = [str(image) for image in screenshots]
 
     duration = len(images_list) / fps
 
@@ -93,4 +87,3 @@ def make_video(folder: str = TODAY,
         if final is not video_clip:
             video_clip.close()
     return output
-
