@@ -16,6 +16,14 @@ def default_data_root() -> Path:
     return Path.home() / "Pictures" / "ScreenshotTimeLapse"
 
 
+def normalize_capture_folder(value: Any, fallback: str) -> str:
+    raw = str(value or fallback).strip()
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = default_data_root() / path
+    return str(path.resolve())
+
+
 @dataclass
 class AppSettings:
     folder: str
@@ -30,8 +38,8 @@ class AppSettings:
     def defaults(cls) -> AppSettings:
         today = datetime.date.today().strftime("%Y-%m-%d")
         return cls(
-            folder=str(default_data_root() / today),
-            audio=str(Path.home() / "Music"),
+            folder=str((default_data_root() / today).resolve()),
+            audio=str((Path.home() / "Music").resolve()),
             text=today,
         )
 
@@ -46,11 +54,13 @@ class AppSettings:
             fps = int(raw.get("fps", defaults.fps))
         except (TypeError, ValueError):
             fps = defaults.fps
+
+        audio_value = raw.get("audio", defaults.audio)
         return cls(
-            folder=str(raw.get("folder") or defaults.folder),
+            folder=normalize_capture_folder(raw.get("folder"), defaults.folder),
             interval=max(1, interval),
             fps=max(1, fps),
-            audio=str(raw.get("audio") or defaults.audio),
+            audio=str(audio_value).strip() if audio_value is not None else "",
             text=str(raw.get("text", defaults.text)),
             startup=bool(raw.get("startup", defaults.startup)),
             minimize_to_tray=bool(
@@ -81,4 +91,5 @@ class SettingsRepository:
             return AppSettings.defaults()
 
     def save(self, settings: AppSettings) -> None:
-        atomic_write_json(self.path, asdict(settings))
+        normalized = AppSettings.from_dict(asdict(settings))
+        atomic_write_json(self.path, asdict(normalized))
