@@ -1,3 +1,10 @@
+import sys
+
+if "--diagnose" in sys.argv:
+    from screentl.diagnostics import run_diagnostics
+
+    raise SystemExit(run_diagnostics())
+
 from screentl.application import run_desktop_app
 from screentl.instance_lock import (
     SingleInstance,
