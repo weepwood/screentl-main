@@ -22,7 +22,20 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-界面支持选择截图目录和音乐目录、设置截屏间隔与视频帧率、填写标题，并分别控制截屏和视频生成。截屏与视频生成在后台线程执行，窗口不会因处理过程卡住。截屏过程中可以暂停/继续，配置会自动保存在 `.screentl.json`。
+界面支持选择截图目录和音乐目录、设置截屏间隔与视频帧率、填写标题，并分别控制截屏和视频生成。截屏与视频生成在后台线程执行，窗口不会因处理过程卡住。截屏过程中可以暂停/继续，配置会自动保存到用户配置目录。
+
+### 打包为单体 EXE
+
+在 Windows 上双击 `build_windows.bat`，或执行：
+
+```bash
+python -m pip install -r requirements-build.txt
+python -m PyInstaller --noconfirm --clean --onefile --windowed --name ScreenshotTimeLapse app.py
+```
+
+生成的 `dist/ScreenshotTimeLapse.exe` 可以直接双击运行，不需要打开命令行。首次运行后，右下角通知区域会出现托盘图标；关闭窗口默认只隐藏到托盘，右键托盘图标可以重新打开、开始/停止截屏、进入设置或退出程序。
+
+设置中的“随 Windows 开机启动”使用当前用户的启动项，不需要管理员权限。截图配置保存在 `%APPDATA%\\ScreenshotTimeLapse\\config.json`。
 
 ### 截屏
 
