@@ -1,8 +1,14 @@
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
+sys.modules.setdefault('pyautogui', SimpleNamespace(screenshot=None))
+
+from screentl import utils
 from screentl.storage import atomic_write_json, list_screenshots, next_screenshot_number
 
 
@@ -57,6 +63,36 @@ class ScreenshotStorageTests(unittest.TestCase):
 
             self.assertEqual(json.loads(destination.read_text(encoding='utf-8')), {'num': 4})
             self.assertEqual(list(folder.glob('.num.json.*.tmp')), [])
+
+    def test_screenshot_is_committed_before_counter_update(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+
+            def write_screenshot(path):
+                Path(path).write_bytes(b'png')
+
+            with patch.object(utils.pyautogui, 'screenshot', side_effect=write_screenshot):
+                screenshot_path = utils._do_screenshot(folder)
+
+            self.assertTrue(screenshot_path.is_file())
+            self.assertEqual(json.loads((folder / 'num.json').read_text(encoding='utf-8')), {'num': 1})
+            self.assertEqual(list(folder.glob('.*.tmp.png')), [])
+
+    def test_failed_screenshot_cleans_temporary_file_and_counter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+
+            def fail_after_write(path):
+                Path(path).write_bytes(b'partial')
+                raise RuntimeError('capture failed')
+
+            with patch.object(utils.pyautogui, 'screenshot', side_effect=fail_after_write):
+                with self.assertRaisesRegex(RuntimeError, 'capture failed'):
+                    utils._do_screenshot(folder)
+
+            self.assertEqual(list(folder.glob('screenshot_*.png')), [])
+            self.assertEqual(list(folder.glob('.*.tmp.png')), [])
+            self.assertFalse((folder / 'num.json').exists())
 
 
 if __name__ == '__main__':
