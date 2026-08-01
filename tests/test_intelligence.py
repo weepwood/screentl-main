@@ -2,6 +2,7 @@ from pathlib import Path
 
 from PIL import Image
 
+import screentl.intelligence as intelligence
 from screentl.intelligence import LocalIntelligenceService, TesseractOCR
 from screentl.sessions import SessionRepository
 
@@ -22,9 +23,34 @@ def add_frame(repo, session, name, color, time, app="", title="", ocr=""):
 def test_local_search_clusters_stagnation_and_summary(tmp_path):
     repo = SessionRepository(tmp_path / "sessions.db")
     session = repo.create_session(tmp_path / "data", "Intelligence")
-    add_frame(repo, session, "one.png", "red", "2026-08-02T10:00:00+00:00", "Code", "Editor", "hello project")
-    add_frame(repo, session, "two.png", "red", "2026-08-02T10:01:00+00:00", "Code", "Editor")
-    add_frame(repo, session, "three.png", "red", "2026-08-02T10:02:00+00:00", "Code", "Editor")
+    add_frame(
+        repo,
+        session,
+        "one.png",
+        "red",
+        "2026-08-02T10:00:00+00:00",
+        "Code",
+        "Editor",
+        "hello project",
+    )
+    add_frame(
+        repo,
+        session,
+        "two.png",
+        "red",
+        "2026-08-02T10:01:00+00:00",
+        "Code",
+        "Editor",
+    )
+    add_frame(
+        repo,
+        session,
+        "three.png",
+        "red",
+        "2026-08-02T10:02:00+00:00",
+        "Code",
+        "Editor",
+    )
 
     service = LocalIntelligenceService(repo)
     results = service.search(session.id, "project")
@@ -55,8 +81,6 @@ def test_tesseract_ocr_uses_local_process(tmp_path, monkeypatch):
     def fake_run(command, **kwargs):
         calls.append((command, kwargs))
         return Result()
-
-    import screentl.intelligence as intelligence
 
     monkeypatch.setattr(intelligence.subprocess, "run", fake_run)
     text = TesseractOCR(executable="tesseract", language="eng").extract_text(image)
