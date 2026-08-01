@@ -2,6 +2,7 @@ import datetime
 import json
 import time
 from pathlib import Path
+from threading import Event
 
 import pyautogui
 
@@ -42,7 +43,8 @@ def _do_screenshot(folder: str | Path) -> Path:
 
 
 def screenshot(interval: int = 30,
-               folder: str = TODAY):
+               folder: str = TODAY,
+               stop_event: Event | None = None):
     """
     Execute screen shot
     :param interval: how often the screen is captured.
@@ -52,11 +54,13 @@ def screenshot(interval: int = 30,
     if interval <= 0:
         raise ValueError('interval must be greater than zero')
 
-    while True:
+    while stop_event is None or not stop_event.is_set():
         _do_screenshot(folder)
-        time.sleep(interval)
+        if stop_event is None:
+            time.sleep(interval)
+        elif stop_event.wait(interval):
+            break
 
 # if you want to stop screen capturing, please stop this process
 # or Ctrl+c on the terminal
-
 
