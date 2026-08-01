@@ -35,6 +35,21 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed --name Screenshot
 
 生成的 `dist/ScreenshotTimeLapse.exe` 可以直接双击运行，不需要打开命令行。首次运行后，右下角通知区域会出现托盘图标；关闭窗口默认只隐藏到托盘，右键托盘图标可以重新打开、开始/停止截屏、进入设置或退出程序。
 
+### GitHub Actions 自动审查与发布
+
+仓库包含三条自动化流程：
+
+- `Quality Review`：在 Pull Request、`master` 推送时运行编译检查、Ruff 静态检查、pytest 测试和依赖漏洞审计。
+- `Windows Package`：在 `master` 推送时构建 Windows 单文件 EXE，并上传为 Actions Artifact。
+- `Release Windows Application`：推送版本标签（例如 `v1.0.0`）时自动构建 EXE 并创建 GitHub Release。
+
+发布新版本：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
 设置中的“随 Windows 开机启动”使用当前用户的启动项，不需要管理员权限。截图配置保存在 `%APPDATA%\\ScreenshotTimeLapse\\config.json`。
 
 ### 截屏

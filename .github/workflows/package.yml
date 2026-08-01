@@ -1,0 +1,51 @@
+name: Windows Package
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Build single-file application
+        run: >-
+          python -m PyInstaller --noconfirm --clean --onefile --windowed
+          --name ScreenshotTimeLapse
+          --copy-metadata imageio --copy-metadata moviepy --copy-metadata imageio-ffmpeg
+          app.py
+
+      - name: Verify package
+        shell: pwsh
+        run: |
+          $target = "dist/ScreenshotTimeLapse.exe"
+          if (!(Test-Path $target)) { throw "Package not found: $target" }
+          $size = (Get-Item $target).Length
+          if ($size -lt 1MB) { throw "Package is unexpectedly small: $size bytes" }
+          Write-Host "Created $target ($size bytes)"
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScreenshotTimeLapse-windows
+          path: dist/ScreenshotTimeLapse.exe
+          if-no-files-found: error
+          retention-days: 14
