@@ -110,7 +110,14 @@ class SessionCaptureEngine:
         self.options = options or SessionCaptureOptions()
         self.privacy = privacy or PrivacyGuard()
         self.backend = backend or MSSCaptureBackend()
-        self.ocr = ocr or NullOCR()
+        if ocr is not None:
+            self.ocr = ocr
+        elif self.privacy.rules.ocr_enabled:
+            from .intelligence import TesseractOCR
+
+            self.ocr = TesseractOCR()
+        else:
+            self.ocr = NullOCR()
         self.on_skip = on_skip
         self._session_date = dt.date.today()
 
