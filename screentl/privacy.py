@@ -5,9 +5,10 @@ from __future__ import annotations
 import ctypes
 import os
 import threading
+from collections.abc import Callable
+from ctypes import wintypes
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 
 @dataclass(frozen=True)
@@ -63,13 +64,13 @@ def get_active_window_info() -> ActiveWindowInfo:
     title_buffer = ctypes.create_unicode_buffer(length + 1)
     user32.GetWindowTextW(hwnd, title_buffer, length + 1)
 
-    process_id = ctypes.c_ulong()
+    process_id = wintypes.DWORD()
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
     process_name = ""
     process = kernel32.OpenProcess(0x1000, False, process_id.value)
     if process:
         try:
-            size = ctypes.c_ulong(32768)
+            size = wintypes.DWORD(32768)
             path_buffer = ctypes.create_unicode_buffer(size.value)
             if kernel32.QueryFullProcessImageNameW(
                 process,
@@ -81,11 +82,15 @@ def get_active_window_info() -> ActiveWindowInfo:
         finally:
             kernel32.CloseHandle(process)
 
-    rect_values = (ctypes.c_long * 4)()
+    rect_value = wintypes.RECT()
     rect = None
-    if user32.GetWindowRect(hwnd, ctypes.byref(rect_values)):
-        left, top, right, bottom = rect_values
-        rect = (left, top, max(0, right - left), max(0, bottom - top))
+    if user32.GetWindowRect(hwnd, ctypes.byref(rect_value)):
+        rect = (
+            rect_value.left,
+            rect_value.top,
+            max(0, rect_value.right - rect_value.left),
+            max(0, rect_value.bottom - rect_value.top),
+        )
     return ActiveWindowInfo(title_buffer.value, process_name, rect)
 
 
@@ -196,7 +201,7 @@ class GlobalPrivacyHotkey:
         self._ready.set()
         if not self.registered:
             return
-        message = ctypes.wintypes.MSG()
+        message = wintypes.MSG()
         try:
             while user32.GetMessageW(ctypes.byref(message), None, 0, 0) > 0:
                 if message.message == self.WM_HOTKEY and message.wParam == self.HOTKEY_ID:
