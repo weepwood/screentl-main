@@ -1,6 +1,10 @@
 import unittest
 
-from screentl.instance_lock import ERROR_ALREADY_EXISTS, SingleInstance, activate_existing_window
+from screentl.instance_lock import (
+    ERROR_ALREADY_EXISTS,
+    SingleInstance,
+    activate_existing_window,
+)
 
 
 class FakeWindowsApi:
