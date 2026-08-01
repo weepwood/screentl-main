@@ -1,18 +1,19 @@
+from screentl.application import run_desktop_app
 from screentl.instance_lock import (
     SingleInstance,
     activate_existing_window,
 )
-from screentl.ui import APP_NAME, main
+from screentl.ui import APP_NAME
 
-INSTANCE_MUTEX = r'Local\ScreenshotTimeLapse'
+INSTANCE_MUTEX = r"Local\ScreenshotTimeLapse"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     instance = SingleInstance(INSTANCE_MUTEX)
     if not instance.acquire():
         activate_existing_window(APP_NAME)
     else:
         try:
-            main()
+            run_desktop_app()
         finally:
             instance.release()
