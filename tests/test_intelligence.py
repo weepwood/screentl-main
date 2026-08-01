@@ -1,8 +1,6 @@
-from pathlib import Path
-
 from PIL import Image
 
-import screentl.intelligence as intelligence
+from screentl import intelligence
 from screentl.intelligence import LocalIntelligenceService, TesseractOCR
 from screentl.sessions import SessionRepository
 
