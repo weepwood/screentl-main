@@ -2,10 +2,14 @@ import datetime
 import random
 from pathlib import Path
 
-from moviepy.editor import AudioFileClip, CompositeVideoClip, ImageSequenceClip, TextClip
+from moviepy.editor import (
+    AudioFileClip,
+    CompositeVideoClip,
+    ImageSequenceClip,
+    TextClip,
+)
 
 from .storage import list_screenshots
-
 
 TODAY = datetime.date.today().strftime('%Y-%m-%d')
 
