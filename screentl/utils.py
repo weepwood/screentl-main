@@ -8,7 +8,7 @@ from typing import Callable, Optional
 
 import pyautogui
 
-from .storage import atomic_write_json, next_screenshot_number
+from .storage import atomic_write_json, next_screenshot_number, parse_screenshot_name
 
 TODAY = datetime.date.today().strftime('%Y-%m-%d')
 
@@ -18,10 +18,10 @@ def _get_num(folder: str | Path) -> int:
     return next_screenshot_number(folder)
 
 
-def _do_screenshot(folder: str | Path) -> Path:
+def _do_screenshot(folder: str | Path, number: int | None = None) -> Path:
     folder_path = Path(folder)
     folder_path.mkdir(parents=True, exist_ok=True)
-    num = _get_num(folder_path)
+    num = _get_num(folder_path) if number is None else max(0, number)
 
     while True:
         timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
@@ -60,12 +60,17 @@ def screenshot(interval: int = 30,
     if interval <= 0:
         raise ValueError('interval must be greater than zero')
 
+    next_number = _get_num(folder)
     while stop_event is None or not stop_event.is_set():
         if pause_event is not None:
             pause_event.wait()
             if stop_event is not None and stop_event.is_set():
                 break
-        image_path = _do_screenshot(folder)
+        image_path = _do_screenshot(folder, next_number)
+        parsed = parse_screenshot_name(image_path)
+        if parsed is None:
+            raise RuntimeError(f'unexpected screenshot filename: {image_path.name}')
+        next_number = parsed[0] + 1
         if on_capture is not None:
             on_capture(image_path)
         if stop_event is None:
