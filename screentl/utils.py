@@ -1,45 +1,48 @@
 import datetime
-import json
+import os
 import time
+import uuid
 from pathlib import Path
 from threading import Event
 from typing import Callable, Optional
 
 import pyautogui
 
+from .storage import atomic_write_json, next_screenshot_number
+
 TODAY = datetime.date.today().strftime('%Y-%m-%d')
 
 
 def _get_num(folder: str | Path) -> int:
-    """Create the output directory and return the next screenshot number."""
-    folder = Path(folder)
-    folder.mkdir(parents=True, exist_ok=True)
-    counter_file = folder / 'num.json'
-
-    # initialize the first index, either continue from last screenshot or create the first.
-    if not counter_file.exists():
-        return 0
-
-    try:
-        with counter_file.open('r', encoding='utf-8') as f:
-            return max(0, int(json.load(f)['num']))
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
-        # A damaged counter should not prevent future captures.
-        return 0
+    """Create the output directory and return a collision-resistant next number."""
+    return next_screenshot_number(folder)
 
 
 def _do_screenshot(folder: str | Path) -> Path:
-    folder = Path(folder)
-    num = _get_num(folder)
+    folder_path = Path(folder)
+    folder_path.mkdir(parents=True, exist_ok=True)
+    num = _get_num(folder_path)
 
-    timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    filename = folder / f'screenshot_{num}_{timestamp}.png'
-    pyautogui.screenshot(str(filename))
+    while True:
+        timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+        filename = folder_path / f'screenshot_{num}_{timestamp}.png'
+        if not filename.exists():
+            break
+        num += 1
+
+    temporary = folder_path / f'.{filename.stem}.{uuid.uuid4().hex}.tmp.png'
+    try:
+        pyautogui.screenshot(str(temporary))
+        if not temporary.is_file():
+            raise OSError(f'screenshot backend did not create a file: {temporary}')
+        os.replace(temporary, filename)
+        atomic_write_json(folder_path / 'num.json', {'num': num + 1})
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+
     start = time.time()
     print(f'Captured screenshot {num} at {time.ctime(start)}')
-    num += 1
-    with (folder / 'num.json').open('w', encoding='utf-8') as f:
-        json.dump({'num': num}, f)
     return filename
 
 
