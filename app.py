@@ -1,6 +1,8 @@
-from screentl.instance_lock import SingleInstance, activate_existing_window
+from screentl.instance_lock import (
+    SingleInstance,
+    activate_existing_window,
+)
 from screentl.ui import APP_NAME, main
-
 
 INSTANCE_MUTEX = r'Local\ScreenshotTimeLapse'
 
