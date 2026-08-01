@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import html
 import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -199,7 +200,7 @@ class TimelineService:
         cards = []
         for frame in frames:
             thumbnail = self.ensure_thumbnail(session_id, frame)
-            relative = thumbnail.relative_to(destination.parent).as_posix()
+            relative = Path(os.path.relpath(thumbnail, destination.parent)).as_posix()
             status = "excluded" if frame.excluded else "kept"
             cards.append(
                 "<article class='frame'>"
