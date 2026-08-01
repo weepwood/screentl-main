@@ -1,9 +1,14 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-py -3 -m pip install -r requirements-build.txt
-py -3 -m PyInstaller --noconfirm --clean --onefile --windowed --name ScreenshotTimeLapse ^
-  --copy-metadata imageio --copy-metadata moviepy --copy-metadata imageio-ffmpeg app.py
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\build_windows.ps1"
+if errorlevel 1 (
+  echo.
+  echo Build failed.
+  pause
+  exit /b 1
+)
 echo.
 echo Build complete: dist\ScreenshotTimeLapse.exe
+echo Checksum: dist\ScreenshotTimeLapse.exe.sha256
 pause
