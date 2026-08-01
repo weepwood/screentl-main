@@ -1,12 +1,8 @@
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
-
-sys.modules.setdefault('pyautogui', SimpleNamespace(screenshot=None))
 
 from screentl import utils
 from screentl.storage import atomic_write_json, list_screenshots, next_screenshot_number
