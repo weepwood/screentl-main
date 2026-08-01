@@ -3,6 +3,7 @@ from threading import Event
 
 from PIL import Image
 
+import screentl.privacy as privacy
 from screentl.capture_engine import SessionCaptureEngine, SessionCaptureOptions
 from screentl.privacy import ActiveWindowInfo, PrivacyGuard, PrivacyRules
 from screentl.sessions import SessionRepository
@@ -25,8 +26,6 @@ class FakeOCR:
 
 
 def test_privacy_guard_manual_app_title_idle_and_battery(monkeypatch):
-    import screentl.privacy as privacy
-
     window = ActiveWindowInfo("Secret document", "vault.exe", (0, 0, 100, 100))
     monkeypatch.setattr(privacy, "get_active_window_info", lambda: window)
     monkeypatch.setattr(privacy, "is_workstation_locked", lambda: False)
@@ -55,40 +54,38 @@ def test_privacy_guard_manual_app_title_idle_and_battery(monkeypatch):
     assert guard.should_capture()[:2] == (False, "running on battery")
 
 
-def test_session_capture_engine_indexes_frame_and_ocr(tmp_path):
+def test_session_capture_engine_indexes_frame_and_ocr(tmp_path, monkeypatch):
     repo = SessionRepository(tmp_path / "sessions.db")
     session = repo.create_session(tmp_path / "data", "Capture")
     backend = FakeBackend()
-    rules = PrivacyRules(collect_window_metadata=True, ocr_enabled=True, pause_when_locked=False)
+    rules = PrivacyRules(
+        collect_window_metadata=True,
+        ocr_enabled=True,
+        pause_when_locked=False,
+    )
     guard = PrivacyGuard(rules)
     stop = Event()
     captured = []
 
-    import screentl.privacy as privacy
-
-    original = privacy.get_active_window_info
-    privacy.get_active_window_info = lambda: ActiveWindowInfo(
-        "Editor",
-        "editor.exe",
-        (0, 0, 100, 60),
+    monkeypatch.setattr(
+        privacy,
+        "get_active_window_info",
+        lambda: ActiveWindowInfo("Editor", "editor.exe", (0, 0, 100, 60)),
     )
-    try:
-        engine = SessionCaptureEngine(
-            repo,
-            session,
-            SessionCaptureOptions(image_format="webp", quality=80, scale=0.5),
-            guard,
-            backend=backend,
-            ocr=FakeOCR(),
-        )
+    engine = SessionCaptureEngine(
+        repo,
+        session,
+        SessionCaptureOptions(image_format="webp", quality=80, scale=0.5),
+        guard,
+        backend=backend,
+        ocr=FakeOCR(),
+    )
 
-        def on_capture(path):
-            captured.append(path)
-            stop.set()
+    def on_capture(path):
+        captured.append(path)
+        stop.set()
 
-        engine(1, str(session.frames_path), stop_event=stop, on_capture=on_capture)
-    finally:
-        privacy.get_active_window_info = original
+    engine(1, str(session.frames_path), stop_event=stop, on_capture=on_capture)
 
     assert backend.calls == 1
     assert len(captured) == 1
