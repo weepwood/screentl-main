@@ -28,5 +28,6 @@ def collect_diagnostics() -> dict[str, str | bool]:
 
 def run_diagnostics() -> int:
     result = collect_diagnostics()
-    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    if sys.stdout is not None:
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0 if result["ffmpeg_exists"] else 1
