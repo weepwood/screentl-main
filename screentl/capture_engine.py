@@ -82,14 +82,7 @@ class MSSCaptureBackend:
                     )
                 area = capture.monitors[options.monitor]
             shot = capture.grab(area)
-            image = Image.frombytes("RGB", shot.size, shot.rgb)
-        if options.scale != 1.0:
-            target = (
-                max(1, round(image.width * options.scale)),
-                max(1, round(image.height * options.scale)),
-            )
-            image = image.resize(target, Image.Resampling.LANCZOS)
-        return image
+            return Image.frombytes("RGB", shot.size, shot.rgb)
 
 
 class SessionCaptureEngine:
@@ -139,6 +132,15 @@ class SessionCaptureEngine:
         )
         self._session_date = today
 
+    def _scale_image(self, image: Image.Image) -> Image.Image:
+        if self.options.scale == 1.0:
+            return image
+        target = (
+            max(1, round(image.width * self.options.scale)),
+            max(1, round(image.height * self.options.scale)),
+        )
+        return image.resize(target, Image.Resampling.LANCZOS)
+
     def _save_image(self, image: Image.Image) -> Path:
         extension = self.options.image_format.casefold().replace("jpeg", "jpg")
         timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
@@ -183,7 +185,7 @@ class SessionCaptureEngine:
                     self.on_skip(reason)
             else:
                 self._rollover_if_needed()
-                image = self.backend.capture(self.options, window)
+                image = self._scale_image(self.backend.capture(self.options, window))
                 path = self._save_image(image)
                 ocr_text = (
                     self.ocr.extract_text(path)
