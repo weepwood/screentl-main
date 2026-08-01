@@ -9,11 +9,11 @@ def main() -> int:
 
         return run_diagnostics()
 
-    from screentl.application import run_desktop_app
     from screentl.instance_lock import (
         SingleInstance,
         activate_existing_window,
     )
+    from screentl.journal_app import run_journal_app
     from screentl.ui import APP_NAME
 
     instance = SingleInstance(INSTANCE_MUTEX)
@@ -21,7 +21,7 @@ def main() -> int:
         activate_existing_window(APP_NAME)
         return 0
     try:
-        run_desktop_app()
+        run_journal_app()
     finally:
         instance.release()
     return 0
