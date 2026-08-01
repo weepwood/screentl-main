@@ -82,9 +82,11 @@ class ScreenshotStorageTests(unittest.TestCase):
                 Path(path).write_bytes(b'partial')
                 raise RuntimeError('capture failed')
 
-            with patch.object(utils.pyautogui, 'screenshot', side_effect=fail_after_write):
-                with self.assertRaisesRegex(RuntimeError, 'capture failed'):
-                    utils._do_screenshot(folder)
+            with (
+                patch.object(utils.pyautogui, 'screenshot', side_effect=fail_after_write),
+                self.assertRaisesRegex(RuntimeError, 'capture failed'),
+            ):
+                utils._do_screenshot(folder)
 
             self.assertEqual(list(folder.glob('screenshot_*.png')), [])
             self.assertEqual(list(folder.glob('.*.tmp.png')), [])
