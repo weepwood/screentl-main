@@ -1,6 +1,11 @@
 import json
+from pathlib import Path
 
-from screentl.settings import AppSettings, SettingsRepository
+from screentl.settings import (
+    AppSettings,
+    SettingsRepository,
+    default_data_root,
+)
 
 
 def test_settings_repository_round_trip(tmp_path):
@@ -30,3 +35,16 @@ def test_settings_repository_recovers_from_invalid_json(tmp_path):
     assert settings.interval > 0
     assert settings.fps > 0
     assert settings.folder
+
+
+def test_relative_legacy_folder_is_migrated_to_data_root(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps({"folder": "2026-08-02", "audio": ""}),
+        encoding="utf-8",
+    )
+
+    settings = SettingsRepository(path).load()
+
+    assert Path(settings.folder) == (default_data_root() / "2026-08-02").resolve()
+    assert settings.audio == ""
