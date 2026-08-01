@@ -79,7 +79,7 @@ def atomic_write_json(path: str | Path, payload: Any) -> None:
 
     try:
         with os.fdopen(file_descriptor, "w", encoding="utf-8") as file:
-            json.dump(payload, file, ensure_ascii=False, indent=2)
+            json.dump(payload, file, ensure_ascii=False)
             file.flush()
             os.fsync(file.fileno())
         os.replace(temporary_path, destination)
