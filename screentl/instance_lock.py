@@ -80,14 +80,6 @@ class SingleInstance:
         self._handle = None
         self._acquired = False
 
-    def __enter__(self) -> 'SingleInstance':
-        if not self.acquire():
-            raise RuntimeError('another application instance is already running')
-        return self
-
-    def __exit__(self, _exc_type, _exc, _traceback) -> None:
-        self.release()
-
 
 def activate_existing_window(title: str, api: Any | None = None) -> bool:
     """Restore and focus a window with the exact application title on Windows."""
