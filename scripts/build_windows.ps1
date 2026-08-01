@@ -33,7 +33,7 @@ Assert-LastExitCode "Install locked build dependencies"
 if (-not $SkipTests) {
     & $Python -m pip install --disable-pip-version-check -r requirements-ci.lock
     Assert-LastExitCode "Install locked CI dependencies"
-    & $Python -m ruff check app.py makevideo.py screenshot.py screentl scripts tests
+    & $Python -m ruff check app.py journal.py makevideo.py screenshot.py screentl scripts tests
     Assert-LastExitCode "Ruff review"
     & $Python -m pytest --cov=screentl --cov-report=term-missing
     Assert-LastExitCode "Test suite"
