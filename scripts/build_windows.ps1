@@ -39,7 +39,7 @@ if (-not $SkipTests) {
     Assert-LastExitCode "Test suite"
 }
 
-& $Python scripts/prepare_build_assets.py
+& $Python -m scripts.prepare_build_assets
 Assert-LastExitCode "Generate build assets"
 & $Python -m PyInstaller --noconfirm --clean ScreenshotTimeLapse.spec
 Assert-LastExitCode "PyInstaller build"
