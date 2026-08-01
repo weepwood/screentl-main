@@ -1,46 +1,50 @@
 # Screenshot Time-lapse
 
+定时截屏并生成延时视频，用于回顾一天的工作过程。
 
+## 安装
 
-#### 介绍
-定时截屏，并生成视频，回顾一天的工作。
+安装 Python 3.10 或更高版本，然后执行：
 
-下载链接：
+```bash
+python -m pip install -r requirements.txt
+```
 
-- https://gitee.com/alvinfeng/screentl 
+视频生成还需要 MoviePy 能调用 FFmpeg；如果要显示标题文字，MoviePy 1.x 的 `TextClip` 可能还需要 ImageMagick。
 
+## 使用
 
-#### 安装教程
+### 截屏
 
-1. 安装依赖库pyautogui, moviepy:
+```bash
+python screenshot.py --folder "D:\\Root\\Pictures\\Day\\2023-02-24" --interval 30
+```
 
-   > pip install pyautogui moviepy
+`--folder` 默认为当天日期目录，`--interval` 单位为秒，默认 30 秒。程序启动后会立即截取第一张图片，之后按间隔继续截屏。
 
-2. 下载本目录下所有文件
+按 `Ctrl+C` 停止截屏。图片命名为 `screenshot_<编号>_<时间>.png`，编号会保存在 `num.json` 中，程序重启后可继续编号。
 
-#### 使用说明
+### 生成视频
 
-1. 需要开启定时截屏时，请运行screenshot.py文件
+```bash
+python makevideo.py --folder "D:\\Root\\Pictures\\Day\\2023-02-24" --fps 25 --audio audio
+```
 
-   - folder: 设置存储截屏图片的目录名，默认按照今天日期命名
+参数：
 
-   - interval: 截屏的时间间隔，以秒为单位，默认为25s
+- `--folder`：截图目录，默认当天日期。
+- `--fps`：每秒帧数，默认 25。
+- `--audio`：音乐目录，默认 `audio`。
+- `--text`：视频开头显示的标题，默认当天日期；传入空字符串可关闭标题。
 
-2.  通过Ctrl+c或者关闭窗口来停止截屏程序；
+程序会自动读取 `screenshot_*.png`，按编号排序。删除不需要的图片后再生成视频即可。
 
-3.  生成视频前可以将不想呈现的图片直接删除；
+如果没有足够长的音频文件，程序会生成无背景音乐的视频并打印警告。
 
-4. 需要生成视频时，请运行makevideo.py文件
+### Windows 隐藏启动
 
-   - folder: 存储截屏图片的文件夹名字，默认是今天的日期
+可以运行 `weepwood_script.vbs`，它会使用同目录下的 `screenshot_weepwood.bat` 在隐藏窗口中启动截屏程序。也可以直接运行 Python 入口脚本。
 
-   - fps: 每秒的帧数，默认25帧
+## 注意事项
 
-   - audio_folder: 音频文件夹的名字
-
-     > 程序会从大于视频时长的所有音乐文件中随机选取一首作为视频的背景音乐
-
-
-
-
-
+截屏可能包含密码、聊天记录或其他敏感信息，请妥善保护输出目录。项目不会上传截图或视频。

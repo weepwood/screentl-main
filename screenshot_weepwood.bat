@@ -1,1 +1,3 @@
-python "D:\App\Script\screentl-main\screenshot.py"
+@echo off
+cd /d "%~dp0"
+py -3 screenshot.py %*

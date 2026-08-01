@@ -1,8 +1,9 @@
 import datetime
 import random
 import re
+from pathlib import Path
 
-from moviepy.editor import *
+from moviepy.editor import AudioFileClip, CompositeVideoClip, ImageSequenceClip, TextClip
 
 
 TODAY = datetime.date.today().strftime('%Y-%m-%d')
@@ -11,8 +12,7 @@ TODAY = datetime.date.today().strftime('%Y-%m-%d')
 def make_video(folder: str = TODAY,
                fps: int = 25,
                audio_loc: str = 'audio',
-               text: str = TODAY
-               ):
+               text: str = TODAY) -> Path:
     """
     make the video
     :param folder: folder where to store the file. By default the folder name is the date.
@@ -21,39 +21,76 @@ def make_video(folder: str = TODAY,
     :param text: what you want to display in the video
     :return: None
     """
-    files = os.listdir(folder)
-    # ensure the time sequence
-    num_list = [int(re.findall(r"\d+", file)[0]) for file in files if file.startswith('screenshot')]
-    num_list.sort()
+    if fps <= 0:
+        raise ValueError('fps must be greater than zero')
 
-    images_list = []
-    for i in num_list:
-        images_list.append(f'{folder}/screenshot_{i}.png')
+    folder_path = Path(folder)
+    if not folder_path.is_dir():
+        raise FileNotFoundError(f'screenshot folder does not exist: {folder_path}')
 
-    duration = len(num_list)/fps
+    # Accept both the current timestamped format and the old screenshot_N.png format.
+    pattern = re.compile(r'^screenshot_(\d+)(?:_\d{8}_\d{6})?\.png$', re.IGNORECASE)
+    numbered_images = []
+    for image in folder_path.iterdir():
+        match = pattern.match(image.name)
+        if match:
+            numbered_images.append((int(match.group(1)), image))
+    numbered_images.sort(key=lambda item: item[0])
+    if not numbered_images:
+        raise FileNotFoundError(f'no screenshot_*.png files found in: {folder_path}')
+
+    images_list = [str(image) for _, image in numbered_images]
+
+    duration = len(images_list) / fps
 
     # randomly select an music from a set where the music duration is longer than video
-    audio_candidates = []
-    for audio_file in os.listdir(audio_loc):
-        audio_clip = AudioFileClip(f'{audio_loc}/{audio_file}')
-        if duration <= audio_clip.end:
-            audio_candidates.append(f'{audio_loc}/{audio_file}')
-
-    audio_file = random.choice(audio_candidates)
     video_clip = ImageSequenceClip(images_list, fps=fps)
+    output = folder_path / 'video.mp4'
+    audio_clip = None
+    final = video_clip
 
     # To use the text video, you have to install "ImageMagick". One can refer to "Other optional but
     # useful dependencies" at https://zulko.github.io/moviepy/install.html
+    if text:
+        try:
+            txt = TextClip(str(text), color='white', fontsize=60)
+            txt_mov = txt.set_pos('center').set_duration(min(3, duration))
+            final = CompositeVideoClip([video_clip, txt_mov])
+        except Exception as exc:
+            print(f'Warning: title overlay disabled: {exc}')
+
+    audio_path = Path(audio_loc)
+    if audio_path.is_dir():
+        candidates = []
+        for path in audio_path.iterdir():
+            if path.suffix.lower() not in {'.mp3', '.m4a', '.wav', '.aac', '.ogg'}:
+                continue
+            try:
+                clip = AudioFileClip(str(path))
+                candidates.append((path, clip.duration))
+                clip.close()
+            except Exception as exc:
+                print(f'Warning: unable to inspect audio {path}: {exc}')
+
+        suitable = [path for path, length in candidates if length >= duration]
+        if suitable:
+            selected_audio = random.choice(suitable)
+            audio_clip = AudioFileClip(str(selected_audio)).subclip(0, duration)
+            final = final.set_audio(audio_clip)
+        elif candidates:
+            print('Warning: no audio track is long enough; video will be silent.')
+        else:
+            print(f'Warning: no supported audio files found in {audio_path}; video will be silent.')
+    else:
+        print(f'Warning: audio folder not found: {audio_path}; video will be silent.')
+
     try:
-        txt = TextClip(f"{text}", color='whi', fontsize=60)
-        txt_mov = txt.set_pos('center').set_duration(3)
-        final = CompositeVideoClip([video_clip, txt_mov])
-    except:
-        final = CompositeVideoClip([video_clip])
-
-    background_music = AudioFileClip(audio_file)
-    final = final.set_audio(background_music)
-    # to compress the video, one can give a string like '2000k' to bitrate.
-    final.set_duration(duration).write_videofile(f'{folder}/video.mp4', bitrate=None)
-
+        final.set_duration(duration).write_videofile(str(output), bitrate=None)
+    finally:
+        if audio_clip is not None:
+            audio_clip.close()
+        final.close()
+        if final is not video_clip:
+            video_clip.close()
+    return output
 

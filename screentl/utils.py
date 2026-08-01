@@ -1,39 +1,44 @@
 import datetime
 import json
-import os
-import pyautogui
-import sched
 import time
+from pathlib import Path
+
+import pyautogui
 
 TODAY = datetime.date.today().strftime('%Y-%m-%d')
 
 
-def _get_num(folder: str):
-    # mkdir with the provided name
-    if not os.path.exists(folder):
-        os.makedirs(folder)
+def _get_num(folder: str | Path) -> int:
+    """Create the output directory and return the next screenshot number."""
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    counter_file = folder / 'num.json'
 
     # initialize the first index, either continue from last screenshot or create the first.
-    if os.path.exists(f'{folder}/num.json'):
-        with open(f'{folder}/num.json', 'r') as f:
-            data = json.load(f)
-            num = data['num']
-    else:
-        num = 0
+    if not counter_file.exists():
+        return 0
 
-    return num
+    try:
+        with counter_file.open('r', encoding='utf-8') as f:
+            return max(0, int(json.load(f)['num']))
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        # A damaged counter should not prevent future captures.
+        return 0
 
 
-def _do_screenshot(folder: str):
+def _do_screenshot(folder: str | Path) -> Path:
+    folder = Path(folder)
     num = _get_num(folder)
 
-    filename = f'{folder}/screenshot_{num}_{time.strftime("%Y%m%d_%H%M%S", time.localtime())}.png'
-    pyautogui.screenshot(filename)
+    timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+    filename = folder / f'screenshot_{num}_{timestamp}.png'
+    pyautogui.screenshot(str(filename))
     start = time.time()
     print(f'Captured screenshot {num} at {time.ctime(start)}')
     num += 1
-    with open(f'{folder}/num.json', 'w') as f:
+    with (folder / 'num.json').open('w', encoding='utf-8') as f:
         json.dump({'num': num}, f)
+    return filename
 
 
 def screenshot(interval: int = 30,
@@ -44,19 +49,14 @@ def screenshot(interval: int = 30,
     :param folder: folder where to store the file. By default the folder name is the date.
     :return: None
     """
-    scheduler = sched.scheduler(time.time, time.sleep)
+    if interval <= 0:
+        raise ValueError('interval must be greater than zero')
 
     while True:
-        scheduler.enter(interval,
-                        1,
-                        _do_screenshot,
-                        kwargs={
-                            'folder': folder,
-                        })
-        scheduler.run()
+        _do_screenshot(folder)
+        time.sleep(interval)
 
 # if you want to stop screen capturing, please stop this process
 # or Ctrl+c on the terminal
-
 
 

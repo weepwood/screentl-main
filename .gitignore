@@ -125,5 +125,10 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+# Generated screenshots and videos
+video.mp4
+num.json
+screenshot_*.png
+
 # Pyre type checker
 .pyre/

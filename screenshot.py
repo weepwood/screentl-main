@@ -1,13 +1,17 @@
-from screentl.utils import screenshot
+import argparse
 import datetime
-import time
+
+from screentl.utils import screenshot
 
 
-today = datetime.date.today().strftime('%Y-%m-%d')
+def main():
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    parser = argparse.ArgumentParser(description='Capture periodic screenshots.')
+    parser.add_argument('--folder', default=today, help='output folder (default: today)')
+    parser.add_argument('--interval', type=int, default=30, help='seconds between captures')
+    args = parser.parse_args()
+    screenshot(folder=args.folder, interval=args.interval)
 
-# argument 'folder' can be replaced by whatever you want. For example, you can name it
-# by your project name. In this way you could organize your screenshots in the folders
-# categorised by your work.
-# interval: how many seconds will you capture the screen.
-screenshot(folder='D:\\Root\\Pictures\\Day\\'+today, interval=10)
 
+if __name__ == '__main__':
+    main()
