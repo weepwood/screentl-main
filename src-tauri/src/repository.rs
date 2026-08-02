@@ -1,6 +1,6 @@
 use std::{env, fs, path::PathBuf};
 
-use rusqlite::{params, Connection, OptionalExtension, Row};
+use rusqlite::{Connection, OptionalExtension, Row, params};
 use thiserror::Error;
 
 use crate::domain::{DashboardSummary, SessionSummary};
@@ -120,7 +120,11 @@ impl SessionRepository {
         })
     }
 
-    pub fn list_sessions(&self, query: &str, status: &str) -> RepositoryResult<Vec<SessionSummary>> {
+    pub fn list_sessions(
+        &self,
+        query: &str,
+        status: &str,
+    ) -> RepositoryResult<Vec<SessionSummary>> {
         let connection = self.connect()?;
         let mut statement = connection.prepare(
             r#"
@@ -213,8 +217,10 @@ impl SessionRepository {
         let sessions = self.list_sessions("", "all")?;
         Ok(DashboardSummary {
             total_sessions: sessions.len() as i64,
-            active_sessions: sessions.iter().filter(|session| session.status == "active").count()
-                as i64,
+            active_sessions: sessions
+                .iter()
+                .filter(|session| session.status == "active")
+                .count() as i64,
             total_frames: sessions.iter().map(|session| session.frames).sum(),
             kept_frames: sessions.iter().map(|session| session.kept_frames).sum(),
             excluded_frames: sessions.iter().map(|session| session.excluded_frames).sum(),
@@ -280,7 +286,9 @@ mod tests {
         let (_directory, repository) = repository();
         seed(&repository);
 
-        let sessions = repository.list_sessions("fir", "all").expect("list sessions");
+        let sessions = repository
+            .list_sessions("fir", "all")
+            .expect("list sessions");
 
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].frames, 2);
@@ -298,8 +306,19 @@ mod tests {
         let sessions = repository.list_sessions("", "all").expect("list sessions");
 
         assert_eq!(selected.status, "active");
-        assert_eq!(sessions.iter().filter(|session| session.status == "active").count(), 1);
-        assert!(sessions.iter().find(|session| session.id == "one").is_some_and(|session| session.status == "paused"));
+        assert_eq!(
+            sessions
+                .iter()
+                .filter(|session| session.status == "active")
+                .count(),
+            1
+        );
+        assert!(
+            sessions
+                .iter()
+                .find(|session| session.id == "one")
+                .is_some_and(|session| session.status == "paused")
+        );
     }
 
     #[test]
