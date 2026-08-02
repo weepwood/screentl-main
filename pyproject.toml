@@ -40,6 +40,8 @@ omit = [
   "screentl/application.py",
   "screentl/journal_app.py",
   "screentl/safe_journal_app.py",
+  "screentl/managed_journal_app.py",
+  "screentl/session_manager.py",
   "screentl/windows.py",
 ]
 
