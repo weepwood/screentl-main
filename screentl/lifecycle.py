@@ -1,12 +1,55 @@
-"""Session-bound capture and timeline helpers."""
+"""Session-bound capture, render and timeline helpers."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from .capture_engine import SessionCaptureEngine
 from .sessions import RecordingSession
 from .timeline import TimelineGroup, TimelinePage, TimelineService, frame_hour
+
+
+@dataclass
+class SessionTaskBindings:
+    """Track immutable session ownership for asynchronous tasks."""
+
+    capture_session_id: str | None = None
+    pending_complete_session_id: str | None = None
+    render_session_id: str | None = None
+
+    def bind_capture(self, session_id: str) -> None:
+        self.capture_session_id = session_id
+        self.pending_complete_session_id = None
+
+    def request_completion(self, session_id: str) -> bool:
+        if self.capture_session_id != session_id:
+            return False
+        self.pending_complete_session_id = session_id
+        return True
+
+    def rollover_capture(self, session_id: str) -> None:
+        self.capture_session_id = session_id
+        self.pending_complete_session_id = None
+
+    def finish_capture(self) -> tuple[str | None, str | None]:
+        session_id = self.capture_session_id
+        if session_id is None:
+            return None, None
+        status = (
+            "completed"
+            if self.pending_complete_session_id == session_id
+            else "paused"
+        )
+        self.capture_session_id = None
+        self.pending_complete_session_id = None
+        return session_id, status
+
+    def bind_render(self, session_id: str) -> None:
+        self.render_session_id = session_id
+
+    def finish_render(self) -> None:
+        self.render_session_id = None
 
 
 class LifecycleCaptureEngine(SessionCaptureEngine):
