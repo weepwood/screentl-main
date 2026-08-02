@@ -8,7 +8,11 @@ from tkinter import messagebox
 from .application import DesktopApplication
 from .events import AppEvent, EventKind
 from .journal_app import JournalApplication
-from .lifecycle import AccurateTimelineService, LifecycleCaptureEngine
+from .lifecycle import (
+    AccurateTimelineService,
+    LifecycleCaptureEngine,
+    SessionTaskBindings,
+)
 from .models import TaskState
 from .renderer import RenderCancelled, RenderOptions
 from .services import CaptureService
@@ -20,9 +24,7 @@ class SafeJournalApplication(JournalApplication):
     """Bind every background task to the session that started it."""
 
     def __init__(self) -> None:
-        self._capture_session_id: str | None = None
-        self._pending_complete_session_id: str | None = None
-        self._render_session_id: str | None = None
+        self._bindings = SessionTaskBindings()
         super().__init__()
         self.timeline_service = AccurateTimelineService(self.repository)
 
@@ -63,7 +65,13 @@ class SafeJournalApplication(JournalApplication):
             return
         session_id = self.current_session.id
         if self.capture_service.is_running:
-            self._pending_complete_session_id = session_id
+            if not self._bindings.request_completion(session_id):
+                messagebox.showerror(
+                    "会话状态异常",
+                    "当前截图任务与所选会话不一致，已拒绝结束操作。",
+                    parent=self,
+                )
+                return
             self.status_var.set("正在结束当前会话…")
             self._log("正在停止截图，线程结束后将会话标记为已完成")
             self.capture_service.stop()
@@ -99,7 +107,7 @@ class SafeJournalApplication(JournalApplication):
             session = event.data
             if isinstance(session, RecordingSession):
                 self.current_session = session
-                self._capture_session_id = session.id
+                self._bindings.rollover_capture(session.id)
                 self.folder_var.set(str(session.frames_path))
                 self._sync_session_ui()
                 self._log(event.message)
@@ -120,8 +128,7 @@ class SafeJournalApplication(JournalApplication):
         session = self.current_session
         self.repository.set_session_status(session.id, "active")
         self.current_session = self.repository.get_session(session.id) or session
-        self._capture_session_id = session.id
-        self._pending_complete_session_id = None
+        self._bindings.bind_capture(session.id)
         engine = LifecycleCaptureEngine(
             repository=self.repository,
             session=self.current_session,
@@ -137,16 +144,16 @@ class SafeJournalApplication(JournalApplication):
         self.folder_var.set(str(self.current_session.frames_path))
         DesktopApplication.start_capture(self)
         if not self.capture_service.is_running and self.capture_service.state is TaskState.IDLE:
-            self._capture_session_id = None
+            self._bindings.finish_capture()
 
     def start_video(self) -> None:
         if self.render_service.is_running:
             return
         if self.current_session is not None:
-            self._render_session_id = self.current_session.id
+            self._bindings.bind_render(self.current_session.id)
         super().start_video()
         if not self.render_service.is_running and self.render_service.state is TaskState.IDLE:
-            self._render_session_id = None
+            self._bindings.finish_render()
 
     def _render_session_adapter(
         self,
@@ -159,7 +166,7 @@ class SafeJournalApplication(JournalApplication):
         on_progress,
     ) -> Path:
         del folder, text, output_name
-        session_id = self._render_session_id
+        session_id = self._bindings.render_session_id
         if session_id is None or self.repository.get_session(session_id) is None:
             raise RuntimeError("render session is unavailable")
         options = self._next_render_options or RenderOptions(
@@ -182,7 +189,7 @@ class SafeJournalApplication(JournalApplication):
     def _apply_task_state(self, source: str, state: TaskState) -> None:
         DesktopApplication._apply_task_state(self, source, state)
         if source == "capture":
-            session_id = self._capture_session_id
+            session_id = self._bindings.capture_session_id
             if session_id is None:
                 return
             if state is TaskState.RUNNING:
@@ -190,25 +197,24 @@ class SafeJournalApplication(JournalApplication):
             elif state is TaskState.PAUSED:
                 self.repository.set_session_status(session_id, "paused")
             elif state in {TaskState.COMPLETED, TaskState.FAILED}:
-                final_status = (
-                    "completed"
-                    if self._pending_complete_session_id == session_id
-                    else "paused"
-                )
-                self.repository.set_session_status(session_id, final_status)
-                if self.current_session is not None and self.current_session.id == session_id:
+                finished_session_id, final_status = self._bindings.finish_capture()
+                if finished_session_id is None or final_status is None:
+                    return
+                self.repository.set_session_status(finished_session_id, final_status)
+                if (
+                    self.current_session is not None
+                    and self.current_session.id == finished_session_id
+                ):
                     self._refresh_current_session()
                     self._sync_session_ui()
                 if final_status == "completed":
                     self._log("当前会话已结束")
-                self._capture_session_id = None
-                self._pending_complete_session_id = None
         elif source == "render" and state in {
             TaskState.COMPLETED,
             TaskState.CANCELLED,
             TaskState.FAILED,
         }:
-            self._render_session_id = None
+            self._bindings.finish_render()
 
 
 def run_safe_journal_app() -> None:
