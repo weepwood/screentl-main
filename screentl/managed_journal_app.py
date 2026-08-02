@@ -34,7 +34,11 @@ class ManagedJournalApplication(SafeJournalApplication):
     def _choose_managed_session(self, session_id: str, resume: bool) -> bool:
         if self._session_change_blocked("切换会话"):
             return False
-        session = self.repository.get_session(session_id)
+        try:
+            session = self.repository.select_session(session_id, resume=resume)
+        except ValueError as exc:
+            messagebox.showinfo("无法继续会话", str(exc), parent=self)
+            return False
         if session is None:
             messagebox.showerror(
                 "会话不存在",
@@ -42,16 +46,6 @@ class ManagedJournalApplication(SafeJournalApplication):
                 parent=self,
             )
             return False
-        if resume and session.status == "archived":
-            messagebox.showinfo(
-                "归档会话",
-                "归档会话只能查看，不能继续记录。",
-                parent=self,
-            )
-            return False
-        if resume:
-            self.repository.set_session_status(session.id, "active")
-            session = self.repository.get_session(session.id) or session
         self.current_session = session
         self._sync_session_ui()
         action = "继续记录" if resume else "切换查看"
