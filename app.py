@@ -13,7 +13,7 @@ def main() -> int:
         SingleInstance,
         activate_existing_window,
     )
-    from screentl.journal_app import run_journal_app
+    from screentl.safe_journal_app import run_safe_journal_app
     from screentl.ui import APP_NAME
 
     instance = SingleInstance(INSTANCE_MUTEX)
@@ -21,7 +21,7 @@ def main() -> int:
         activate_existing_window(APP_NAME)
         return 0
     try:
-        run_journal_app()
+        run_safe_journal_app()
     finally:
         instance.release()
     return 0
