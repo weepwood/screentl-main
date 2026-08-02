@@ -29,8 +29,9 @@ class SessionTaskBindings:
         return True
 
     def rollover_capture(self, session_id: str) -> None:
+        completion_requested = self.pending_complete_session_id is not None
         self.capture_session_id = session_id
-        self.pending_complete_session_id = None
+        self.pending_complete_session_id = session_id if completion_requested else None
 
     def finish_capture(self) -> tuple[str | None, str | None]:
         session_id = self.capture_session_id
