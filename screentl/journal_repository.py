@@ -3,10 +3,26 @@
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .sessions import RecordingSession, SessionRepository, safe_name, utc_now
+
+
+@dataclass(frozen=True)
+class SessionOverview:
+    id: str
+    name: str
+    root_path: Path
+    mode: str
+    status: str
+    started_at: str
+    ended_at: str | None
+    frames: int
+    kept_frames: int
+    excluded_frames: int
+    estimated_video_seconds: float
 
 
 class JournalRepository(SessionRepository):
@@ -99,6 +115,84 @@ class JournalRepository(SessionRepository):
             "estimated_video_seconds": float(row["duration"] or 0),
             "top_apps": [(item["app_name"], int(item["count"])) for item in apps],
         }
+
+    def list_session_overviews(
+        self,
+        query: str = "",
+        status: str | None = None,
+        limit: int = 500,
+    ) -> list[SessionOverview]:
+        if status is not None and status not in {
+            "active",
+            "paused",
+            "completed",
+            "archived",
+        }:
+            raise ValueError(f"unsupported session status: {status}")
+        conditions: list[str] = []
+        parameters: list[Any] = []
+        normalized_query = query.strip()
+        if normalized_query:
+            conditions.append("s.name LIKE ? COLLATE NOCASE")
+            parameters.append(f"%{normalized_query}%")
+        if status is not None:
+            conditions.append("s.status = ?")
+            parameters.append(status)
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        parameters.append(max(1, min(limit, 5000)))
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT s.id,
+                       s.name,
+                       s.root_path,
+                       s.mode,
+                       s.status,
+                       s.started_at,
+                       s.ended_at,
+                       COUNT(f.id) AS frames,
+                       COALESCE(
+                           SUM(CASE WHEN f.id IS NOT NULL AND f.excluded = 0 THEN 1 ELSE 0 END),
+                           0
+                       ) AS kept_frames,
+                       COALESCE(
+                           SUM(CASE WHEN f.id IS NOT NULL AND f.excluded = 1 THEN 1 ELSE 0 END),
+                           0
+                       ) AS excluded_frames,
+                       COALESCE(
+                           SUM(CASE WHEN f.id IS NOT NULL AND f.excluded = 0 THEN f.duration ELSE 0 END),
+                           0
+                       ) AS estimated_video_seconds
+                FROM sessions AS s
+                LEFT JOIN frames AS f
+                    ON f.session_id = s.id AND f.deleted_at IS NULL
+                {where_clause}
+                GROUP BY s.id, s.name, s.root_path, s.mode, s.status,
+                         s.started_at, s.ended_at
+                ORDER BY s.started_at DESC
+                LIMIT ?
+                """,
+                parameters,
+            ).fetchall()
+        return [
+            SessionOverview(
+                id=row["id"],
+                name=row["name"],
+                root_path=Path(row["root_path"]),
+                mode=row["mode"],
+                status=row["status"],
+                started_at=row["started_at"],
+                ended_at=row["ended_at"],
+                frames=int(row["frames"] or 0),
+                kept_frames=int(row["kept_frames"] or 0),
+                excluded_frames=int(row["excluded_frames"] or 0),
+                estimated_video_seconds=float(
+                    row["estimated_video_seconds"] or 0
+                ),
+            )
+            for row in rows
+        ]
 
     def recover_render_jobs(self) -> int:
         finished_at = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
