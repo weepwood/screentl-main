@@ -6,11 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
-# Distribution / packaging
+# Python distribution / packaging
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -30,10 +29,18 @@ MANIFEST
 # PyInstaller
 *.manifest
 *.spec
+!ScreenshotTimeLapse.spec
+
+# Node / Vite / Tauri
+node_modules/
+dist/
+*.tsbuildinfo
+src-tauri/target/
 
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+npm-debug.log*
 
 # Unit test / coverage reports
 htmlcov/
@@ -53,46 +60,28 @@ coverage.xml
 *.mo
 *.pot
 
-# Django stuff
+# Local databases and logs
 *.log
-local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
-# Flask stuff
+# Framework caches
 instance/
 .webassets-cache
+.scrapy/
 
-# Scrapy stuff
-.scrapy
-
-# Sphinx documentation
+# Documentation output
 docs/_build/
+/site
 
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
+# Jupyter / IPython
+.ipynb_checkpoints/
 profile_default/
 ipython_config.py
 
-# pyenv
+# Python environments
 .python-version
-
-# PEP 582
 __pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
 .env
 .venv
 .build-venv/
@@ -102,15 +91,10 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDE project settings
+# IDE and type checker caches
 .spyderproject
 .spyproject
 .ropeproject
-
-# Documentation output
-/site
-
-# Type checker caches
 .mypy_cache/
 .dmypy.json
 dmypy.json
@@ -122,9 +106,6 @@ num.json
 screenshot_*.png
 .screentl.json
 
-# Generated build output
+# Legacy generated build output
 build-assets/
-dist/
 build/
-*.spec
-!ScreenshotTimeLapse.spec
