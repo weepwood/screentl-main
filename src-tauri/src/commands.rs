@@ -27,13 +27,8 @@ pub fn get_app_status(state: State<'_, AppState>) -> AppStatus {
 }
 
 #[tauri::command]
-pub fn get_dashboard_summary(
-    state: State<'_, AppState>,
-) -> Result<DashboardSummary, String> {
-    state
-        .repository
-        .dashboard_summary()
-        .map_err(command_error)
+pub fn get_dashboard_summary(state: State<'_, AppState>) -> Result<DashboardSummary, String> {
+    state.repository.dashboard_summary().map_err(command_error)
 }
 
 #[tauri::command]
