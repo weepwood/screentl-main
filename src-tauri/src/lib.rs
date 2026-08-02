@@ -2,10 +2,8 @@ mod commands;
 mod domain;
 mod repository;
 
-use commands::{
-    get_app_status, get_dashboard_summary, list_sessions, select_session, AppState,
-};
-use repository::{legacy_database_path, SessionRepository};
+use commands::{AppState, get_app_status, get_dashboard_summary, list_sessions, select_session};
+use repository::{SessionRepository, legacy_database_path};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
