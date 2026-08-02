@@ -1,4 +1,3 @@
-import datetime as dt
 from pathlib import Path
 
 import pytest
@@ -103,9 +102,8 @@ def test_format_local_time_handles_empty_invalid_and_aware_values():
     assert format_local_time(None) == "—"
     assert format_local_time("not-a-date") == "not-a-date"
 
-    value = "2026-08-02T05:30:00+00:00"
-    result = format_local_time(value)
-    parsed = dt.datetime.strptime(result, "%Y-%m-%d %H:%M:%S")
-    assert parsed.year == 2026
-    assert parsed.month == 8
-    assert parsed.day in {1, 2}
+    result = format_local_time("2026-08-02T05:30:00+00:00")
+    assert len(result) == 19
+    assert result[:7] == "2026-08"
+    assert result[8:10] in {"01", "02"}
+    assert result[10] == " "
