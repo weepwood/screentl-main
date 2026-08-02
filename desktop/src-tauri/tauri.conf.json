@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Screenshot Time-lapse",
+  "version": "0.3.0",
+  "identifier": "com.weepwood.screenshot-timelapse",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Screenshot Time-lapse",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 620,
+        "center": true,
+        "decorations": true,
+        "transparent": false,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' customprotocol: asset:; img-src 'self' asset: http://asset.localhost blob: data:; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "category": "Productivity",
+    "shortDescription": "本地优先的工作过程截图与延时视频工具",
+    "longDescription": "定时记录屏幕，将截图整理成会话时间轴，并生成延时视频。所有数据默认保存在本机。",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "compression": "lzma"
+      }
+    }
+  }
+}
