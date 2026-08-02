@@ -40,19 +40,13 @@ class JournalRepository(SessionRepository):
             expected = root.expanduser().resolve() / f"{safe_name(normalized_name)}_{today}"
             with self._connect() as connection:
                 row = connection.execute(
-                    "SELECT * FROM sessions WHERE root_path = ?",
+                    "SELECT id FROM sessions WHERE root_path = ?",
                     (str(expected),),
                 ).fetchone()
-                if row is not None:
-                    connection.execute(
-                        "UPDATE sessions SET status = 'active', ended_at = NULL WHERE id = ?",
-                        (row["id"],),
-                    )
-                    refreshed = connection.execute(
-                        "SELECT * FROM sessions WHERE id = ?",
-                        (row["id"],),
-                    ).fetchone()
-                    return self._session_from_row(refreshed)
+            if row is not None:
+                selected = self.select_session(row["id"], resume=True)
+                if selected is not None:
+                    return selected
         created = super().create_session(
             root,
             normalized_name,
@@ -60,17 +54,58 @@ class JournalRepository(SessionRepository):
             settings,
             session_id,
         )
-        return self.get_session(created.id) or created
+        return self.select_session(created.id, resume=True) or created
 
     def set_session_status(self, session_id: str, status: str) -> None:
         if status not in {"active", "paused", "completed", "archived"}:
             raise ValueError(f"unsupported session status: {status}")
         ended_at = utc_now() if status in {"completed", "archived"} else None
         with self._connect() as connection:
+            if status == "active":
+                connection.execute(
+                    """
+                    UPDATE sessions SET status = 'paused', ended_at = NULL
+                    WHERE status = 'active' AND id != ?
+                    """,
+                    (session_id,),
+                )
             connection.execute(
                 "UPDATE sessions SET status = ?, ended_at = ? WHERE id = ?",
                 (status, ended_at, session_id),
             )
+
+    def select_session(
+        self,
+        session_id: str,
+        resume: bool = False,
+    ) -> RecordingSession | None:
+        """Select one session and preserve the single-active-session invariant."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            if resume and row["status"] == "archived":
+                raise ValueError("archived sessions cannot be resumed")
+            connection.execute(
+                """
+                UPDATE sessions SET status = 'paused', ended_at = NULL
+                WHERE status = 'active' AND id != ?
+                """,
+                (session_id,),
+            )
+            if resume:
+                connection.execute(
+                    "UPDATE sessions SET status = 'active', ended_at = NULL WHERE id = ?",
+                    (session_id,),
+                )
+            refreshed = connection.execute(
+                "SELECT * FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+        return self._session_from_row(refreshed) if refreshed is not None else None
 
     def count_frames(self, session_id: str, include_excluded: bool = True) -> int:
         excluded_clause = "" if include_excluded else "AND excluded = 0"
