@@ -12,6 +12,7 @@ class EventKind(str, Enum):
     LOG = "log"
     TASK_STATE = "task_state"
     CAPTURED = "captured"
+    SESSION_CHANGED = "session_changed"
     RENDER_PROGRESS = "render_progress"
     RENDER_FINISHED = "render_finished"
     ERROR = "error"
