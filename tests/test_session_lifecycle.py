@@ -28,14 +28,14 @@ def test_task_bindings_complete_only_the_bound_capture_session():
     assert bindings.pending_complete_session_id is None
 
 
-def test_task_bindings_rollover_and_render_are_pinned():
+def test_task_bindings_transfer_completion_intent_across_rollover():
     bindings = SessionTaskBindings()
     bindings.bind_capture("day-one")
     bindings.request_completion("day-one")
     bindings.rollover_capture("day-two")
     bindings.bind_render("render-session")
 
-    assert bindings.finish_capture() == ("day-two", "paused")
+    assert bindings.finish_capture() == ("day-two", "completed")
     assert bindings.render_session_id == "render-session"
     bindings.finish_render()
     assert bindings.render_session_id is None
